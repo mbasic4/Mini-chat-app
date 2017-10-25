@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Chat</title>
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+	  <script src="http://code.jquery.com/jquery-latest.min.js"></script>
+	  <script src="/socket.io/socket.io.js"></script>
+  </head>
+  <body>
+	<div id="usernameWrap" style="margin-left: 20px;">
+	  <p>Enter your username:</p>
+      <form id="setUsername">
+		<input size="35" id="username" name="username"/>
+		<button id="btn" class="btn_style" type="submit">Submit</button>	
+	  </form>
+	</div>
+	<div id="contentWrap" class="contentWrap">
+		<div id="users" class="users"></div>
+		<div id="chat" class="chat"></div>
+		<form id="send-message" style="margin-left: 10px;">
+		  <input autocomplete="off" id="message" class="input_style"/>
+		  <button type="submit" class="btn_style">Send</button>
+		</form>
+	</div>
+	<script>
+		function listMessages() {	
+			var xhttp = new XMLHttpRequest();
+			var input = document.getElementById("username").value;
+			if(!input){return}
+			xhttp.onreadystatechange = function() {
+				if (this.readyState == 4 && this.status == 200) {
+					var result = JSON.parse(this.responseText);
+					if(result.length) {
+						for (var i = 0; i < result.length; i++) {
+							$(chat).append('<span class="history"><b>' + result[i].username_1 + ': </b>' + result[i].message + ' [' + result[i].time + ']</span><br>');
+						}
+					}
+					else {
+						return;
+					}
+				}
+			}
+			xhttp.open("GET", "/list/"+input, true);
+			xhttp.send();
+		}
+		
+		document.getElementById("btn").addEventListener("click", function(){
+			listMessages();
+		});
+		
+		$(document).ready(function() {
+			var socket = io.connect();
+			var usernameForm = document.getElementById("setUsername");
+			var usernameInput = document.getElementById("username");
+			var users = document.getElementById("users");
+			var messageForm = document.getElementById("send-message");
+			var messageInput = document.getElementById("message");
+			var chat = document.getElementById("chat");
+			
+			$(usernameForm).submit(function(e) {
+				e.preventDefault();
+				socket.emit('new user', usernameInput.value, function(data) {
+					$('#usernameWrap').hide();
+					$('.contentWrap').show();
+				});
+				usernameInput.value = "";
+			});
+			
+			socket.on('usernames', function(data) {
+				console.log(data);
+				var html = "";
+				for(var i = 0; i < data.length; i++) {
+					html += data[i] + '<br>'
+				}
+				$(users).html(html);
+			});
+			
+			$(messageForm).submit(function(e) {
+				e.preventDefault();
+				socket.emit('send message', messageInput.value, function(data) {
+					$(chat).append('<span class="error">' + data + "</span><br>");
+				});
+				messageInput.value = "";
+			});
+			
+			//messages that are seen by everyone in the chat room
+			socket.on('new message', function(data) {
+				var currentdate = new Date();
+				var datetime =  currentdate.getDate() + "/"
+							+ (currentdate.getMonth()+1)  + "/" 
+							+ currentdate.getFullYear() + "  "  
+							+ currentdate.getHours() + ":"  
+							+ currentdate.getMinutes() + ":" 
+							+ currentdate.getSeconds();
+				$(chat).append('<span class="message"><b>' + data.user + ': </b>' + data.msg + '<i> [' + datetime + ']</i></span><br>');
+			});
+			
+			//private messages displayed only to sender and receiver that the sender has chosen
+			socket.on('whisper', function(data) {
+				var currentdate = new Date();
+				var datetime =  currentdate.getDate() + "/"
+							+ (currentdate.getMonth()+1)  + "/" 
+							+ currentdate.getFullYear() + "  "  
+							+ currentdate.getHours() + ":"  
+							+ currentdate.getMinutes() + ":" 
+							+ currentdate.getSeconds();
+				$(chat).append('<span class="whisper"><b>' + data.user + ': </b>' + data.msg + '<i> [' + datetime + ']</i></span><br>');
+			});
+		});
+	</script>
+  </body>
+</html>
